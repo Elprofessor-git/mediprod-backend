@@ -1,5 +1,6 @@
 // src/controllers/notifications.controller.js
-const db = require("../config/db");
+const { pool: db } = require("../config/db");
+const newId = require("../utils/uuid");
 
 // GET /api/notifications — filtrées par rôle
 async function getAll(req, res) {
@@ -34,12 +35,16 @@ async function markRead(req, res) {
 // PUT /api/notifications/read-all
 async function markAllRead(req, res) {
   const role = req.user.role;
-  const recipientRole = role === "Admin" ? "Admin" : "Responsable Commercial";
   try {
-    await db.query(
-      "UPDATE notifications SET read_status = TRUE WHERE recipient_role = ?",
-      [recipientRole]
-    );
+    if (role === "Admin") {
+      await db.query(
+        "UPDATE notifications SET read_status = TRUE WHERE recipient_role IN ('Admin', 'Responsable Commercial')"
+      );
+    } else {
+      await db.query(
+        "UPDATE notifications SET read_status = TRUE WHERE recipient_role = 'Responsable Commercial'"
+      );
+    }
     res.json({ message: "Toutes les notifications marquées comme lues" });
   } catch (err) { res.status(500).json({ error: err.message }); }
 }
@@ -55,18 +60,18 @@ async function createIncident(req, res) {
     await conn.beginTransaction();
 
     await conn.query(
-      `INSERT INTO incidents (type, description, order_id, product_id, reported_by)
-       VALUES (?, ?, ?, ?, ?)`,
-      [type, description, orderId || null, productId || null, req.user.name]
+      `INSERT INTO incidents (id, type, description, order_id, product_id, reported_by)
+       VALUES (?, ?, ?, ?, ?, ?)`,
+      [newId(), type, description, orderId || null, productId || null, req.user.name]
     );
 
     // Créer notification pour le Commercial et l'Admin
     const message = `Incident signalé par ${req.user.name} : ${description}`;
     for (const recipientRole of ["Responsable Commercial", "Admin"]) {
       await conn.query(
-        `INSERT INTO notifications (type, message, order_id, recipient_role)
-         VALUES (?, ?, ?, ?)`,
-        [type === "panne_machine" ? "panne_machine" : "autre", message, orderId || null, recipientRole]
+        `INSERT INTO notifications (id, type, message, order_id, recipient_role)
+         VALUES (?, ?, ?, ?, ?)`,
+        [newId(), type === "panne_machine" ? "panne_machine" : "autre", message, orderId || null, recipientRole]
       );
     }
 

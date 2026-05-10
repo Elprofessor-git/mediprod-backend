@@ -1,5 +1,6 @@
 // src/controllers/products.controller.js
-const db = require("../config/db");
+const { pool: db } = require("../config/db");
+const { checkAndNotifyStock } = require("../utils/stockAlert");
 
 const toClient = (p) => ({
   id: String(p.id),
@@ -42,6 +43,9 @@ async function update(req, res) {
     if (!fields.length) return res.status(400).json({ error: "Aucun champ à modifier" });
     values.push(req.params.id);
     await db.query(`UPDATE products SET ${fields.join(", ")} WHERE id = ?`, values);
+    if (currentStock !== undefined || minStock !== undefined) {
+      await checkAndNotifyStock(db, req.params.id);
+    }
     res.json({ message: "Produit mis à jour" });
   } catch (err) { res.status(500).json({ error: err.message }); }
 }

@@ -1,5 +1,7 @@
 // src/controllers/stock.controller.js
-const db = require("../config/db");
+const { pool: db } = require("../config/db");
+const { checkAndNotifyStock } = require("../utils/stockAlert");
+const newId = require("../utils/uuid");
 
 // GET /api/stock/movements
 async function getMovements(req, res) {
@@ -25,9 +27,9 @@ async function addMovement(req, res) {
     await conn.beginTransaction();
 
     await conn.query(
-      `INSERT INTO stock_movements (product_id, type, quantity, reason, user_name)
-       VALUES (?, ?, ?, ?, ?)`,
-      [productId, type, quantity, reason || "", req.user.name]
+      `INSERT INTO stock_movements (id, product_id, type, quantity, reason, user_name)
+       VALUES (?, ?, ?, ?, ?, ?)`,
+      [newId(), productId, type, quantity, reason || "", req.user.name]
     );
 
     // Mise à jour du stock selon le type
@@ -48,19 +50,7 @@ async function addMovement(req, res) {
       );
     }
 
-    // Vérifier si le stock est sous le seuil → créer notification
-    const [products] = await conn.query(
-      "SELECT name, current_stock, min_stock FROM products WHERE id = ?",
-      [productId]
-    );
-    const product = products[0];
-    if (product && product.current_stock <= product.min_stock) {
-      await conn.query(
-        `INSERT INTO notifications (type, message, recipient_role)
-         VALUES ('stock_insuffisant', ?, 'Responsable Commercial')`,
-        [`Stock ${product.name} insuffisant (${product.current_stock} kg < seuil ${product.min_stock} kg). Réapprovisionnement requis.`]
-      );
-    }
+    await checkAndNotifyStock(conn, productId);
 
     await conn.commit();
     res.status(201).json({ message: "Mouvement enregistré" });
