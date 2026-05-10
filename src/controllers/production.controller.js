@@ -1,6 +1,8 @@
 // src/controllers/production.controller.js
-const db = require("../config/db");
+const { pool: db } = require("../config/db");
 const { getProductFilter } = require("../middleware/roles");
+const { checkAndNotifyStock } = require("../utils/stockAlert");
+const newId = require("../utils/uuid");
 
 // GET /api/production
 async function getAll(req, res) {
@@ -44,10 +46,11 @@ async function create(req, res) {
   try {
     await conn.beginTransaction();
 
-    const [result] = await conn.query(
-      `INSERT INTO production_entries (date, product_id, produced, packaged, lot, operator, notes)
-       VALUES (?, ?, ?, ?, ?, ?, ?)`,
-      [date || new Date(), productId, produced, packaged, lot, operator, notes || ""]
+    const entryId = newId();
+    await conn.query(
+      `INSERT INTO production_entries (id, date, product_id, produced, packaged, lot, operator, notes)
+       VALUES (?, ?, ?, ?, ?, ?, ?, ?)`,
+      [entryId, date || new Date(), productId, produced, packaged, lot, operator, notes || ""]
     );
 
     // Mettre à jour le stock courant
@@ -56,8 +59,10 @@ async function create(req, res) {
       [packaged, productId]
     );
 
+    await checkAndNotifyStock(conn, productId);
+
     await conn.commit();
-    res.status(201).json({ id: result.insertId, message: "Production enregistrée" });
+    res.status(201).json({ id: entryId, message: "Production enregistrée" });
   } catch (err) {
     await conn.rollback();
     res.status(500).json({ error: err.message });
@@ -82,6 +87,7 @@ async function remove(req, res) {
         "UPDATE products SET current_stock = GREATEST(0, current_stock - ?) WHERE id = ?",
         [entry.packaged, entry.product_id]
       );
+      await checkAndNotifyStock(conn, entry.product_id);
       await conn.commit();
       res.json({ message: "Entrée supprimée" });
     } catch (err) {

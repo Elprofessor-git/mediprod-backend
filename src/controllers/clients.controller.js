@@ -1,5 +1,6 @@
 // src/controllers/clients.controller.js
-const db = require("../config/db");
+const { pool: db } = require("../config/db");
+const newId = require("../utils/uuid");
 
 async function getAll(req, res) {
   try {
@@ -17,12 +18,13 @@ async function create(req, res) {
     const [[{ count }]] = await db.query("SELECT COUNT(*) AS count FROM clients");
     const clientNumber = String(Number(count) + 1).padStart(4, "0");
 
-    const [result] = await db.query(
-      `INSERT INTO clients (client_number, name, company, phone, email, address, city, postal_code, matricule_fiscale, notes)
-       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
-      [clientNumber, name, company, phone, email, address, city, postalCode, matriculeFiscale, notes]
+    const clientId = newId();
+    await db.query(
+      `INSERT INTO clients (id, client_number, name, company, phone, email, address, city, postal_code, matricule_fiscale, notes)
+       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+      [clientId, clientNumber, name, company, phone, email, address, city, postalCode, matriculeFiscale, notes]
     );
-    res.status(201).json({ id: result.insertId, clientNumber, message: "Client créé" });
+    res.status(201).json({ id: clientId, clientNumber, message: "Client créé" });
   } catch (err) { res.status(500).json({ error: err.message }); }
 }
 

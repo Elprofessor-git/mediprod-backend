@@ -1,7 +1,7 @@
 // src/controllers/auth.controller.js
 const bcrypt = require("bcryptjs");
 const jwt = require("jsonwebtoken");
-const db = require("../config/db");
+const { pool: db } = require("../config/db");
 
 // POST /api/auth/login
 async function login(req, res) {

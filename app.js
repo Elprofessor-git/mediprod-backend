@@ -1,13 +1,14 @@
 // app.js — Serveur Express MediProd
 require("dotenv").config();
 const express = require("express");
-const cors    = require("cors");
-const helmet  = require("helmet");
-const morgan  = require("morgan");
+const cors = require("cors");
+const helmet = require("helmet");
+const morgan = require("morgan");
 
-const routes  = require("./src/routes");
+const { initDatabase } = require("./src/config/db");
+const routes = require("./src/routes");
 
-const app  = express();
+const app = express();
 const PORT = process.env.PORT || 5000;
 
 // ── Middlewares globaux ──────────────────────────────────────
@@ -34,8 +35,15 @@ app.use((err, req, res, next) => {
   res.status(500).json({ error: "Erreur interne du serveur" });
 });
 
-app.listen(PORT, () => {
-  console.log(`\n🚀 MediProd API démarrée sur http://localhost:${PORT}`);
-  console.log(`📋 Routes disponibles : http://localhost:${PORT}/api`);
-  console.log(`🔍 Health check      : http://localhost:${PORT}/health\n`);
-});
+initDatabase()
+  .then(() => {
+    app.listen(PORT, () => {
+      console.log(`\n🚀 MediProd API démarrée sur http://localhost:${PORT}`);
+      console.log(`📋 Routes disponibles : http://localhost:${PORT}/api`);
+      console.log(`🔍 Health check      : http://localhost:${PORT}/health\n`);
+    });
+  })
+  .catch((err) => {
+    console.error("❌ Échec initialisation DB:", err.message);
+    process.exit(1);
+  });

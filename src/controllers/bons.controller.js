@@ -1,5 +1,6 @@
 // src/controllers/bons.controller.js
-const db = require("../config/db");
+const { pool: db } = require("../config/db");
+const newId = require("../utils/uuid");
 
 async function getAll(req, res) {
   try {
@@ -37,19 +38,19 @@ async function create(req, res) {
     const [[{ count }]] = await conn.query("SELECT COUNT(*) AS count FROM bons_livraison");
     const bonNumber = number || `${String(Number(count) + 1).padStart(4, "0")} / ${new Date().getFullYear()}`;
 
-    const [result] = await conn.query(
-      `INSERT INTO bons_livraison (number, client_id, order_id, date, delivery_date, status, notes, chauffeur, matricule_fiscale, prepared_by)
-       VALUES (?, ?, ?, ?, ?, 'Brouillon', ?, ?, ?, ?)`,
-      [bonNumber, clientId, orderId || null, date || new Date(),
+    const bonId = newId();
+    await conn.query(
+      `INSERT INTO bons_livraison (id, number, client_id, order_id, date, delivery_date, status, notes, chauffeur, matricule_fiscale, prepared_by)
+       VALUES (?, ?, ?, ?, ?, ?, 'Brouillon', ?, ?, ?, ?)`,
+      [bonId, bonNumber, clientId, orderId || null, date || new Date(),
        deliveryDate || null, notes || "", chauffeur || "", matriculeFiscale || "", req.user.name]
     );
-    const bonId = result.insertId;
 
     for (const item of items) {
       await conn.query(
-        `INSERT INTO bon_items (bon_id, designation, quantity, unit, unit_price, conditionnement, observations)
-         VALUES (?, ?, ?, ?, ?, ?, ?)`,
-        [bonId, item.designation, item.quantity, item.unit,
+        `INSERT INTO bon_items (id, bon_id, designation, quantity, unit, unit_price, conditionnement, observations)
+         VALUES (?, ?, ?, ?, ?, ?, ?, ?)`,
+        [newId(), bonId, item.designation, item.quantity, item.unit,
          item.unitPrice, item.conditionnement || "", item.observations || ""]
       );
     }
