@@ -1,6 +1,7 @@
 // src/controllers/orders.controller.js
-const db = require("../config/db");
+const { pool: db } = require("../config/db");
 const { getProductFilter } = require("../middleware/roles");
+const newId = require("../utils/uuid");
 
 // GET /api/orders
 async function getAll(req, res) {
@@ -68,17 +69,17 @@ async function create(req, res) {
     const [[{ count }]] = await conn.query("SELECT COUNT(*) AS count FROM orders");
     const number = `CMD-${new Date().getFullYear()}-${String(Number(count) + 1).padStart(4, "0")}`;
 
-    const [result] = await conn.query(
-      `INSERT INTO orders (number, client_id, date, delivery_date, status, notes)
-       VALUES (?, ?, ?, ?, 'En attente', ?)`,
-      [number, clientId, date || new Date(), deliveryDate || null, notes || ""]
+    const orderId = newId();
+    await conn.query(
+      `INSERT INTO orders (id, number, client_id, date, delivery_date, status, notes)
+       VALUES (?, ?, ?, ?, ?, 'En attente', ?)`,
+      [orderId, number, clientId, date || new Date(), deliveryDate || null, notes || ""]
     );
-    const orderId = result.insertId;
 
     for (const item of items) {
       await conn.query(
-        "INSERT INTO order_items (order_id, product_id, quantity, unit_price) VALUES (?, ?, ?, ?)",
-        [orderId, item.productId, item.quantity, item.unitPrice]
+        "INSERT INTO order_items (id, order_id, product_id, quantity, unit_price) VALUES (?, ?, ?, ?, ?)",
+        [newId(), orderId, item.productId, item.quantity, item.unitPrice]
       );
     }
 
@@ -126,8 +127,8 @@ async function updateStatus(req, res) {
       await conn.query("DELETE FROM order_partial_quantities WHERE order_id = ?", [id]);
       for (const [productId, quantity] of Object.entries(partialQuantities)) {
         await conn.query(
-          "INSERT INTO order_partial_quantities (order_id, product_id, quantity) VALUES (?, ?, ?)",
-          [id, productId, quantity]
+          "INSERT INTO order_partial_quantities (id, order_id, product_id, quantity) VALUES (?, ?, ?, ?)",
+          [newId(), id, productId, quantity]
         );
       }
     }
@@ -135,9 +136,9 @@ async function updateStatus(req, res) {
     // Si commande refusée → notification au Responsable Commercial
     if (status === "Refusé") {
       await conn.query(
-        `INSERT INTO notifications (type, message, order_id, recipient_role)
-         VALUES ('commande_refusée', ?, ?, 'Responsable Commercial')`,
-        [`La commande a été refusée. Raison : ${refusalReason || "Non précisée"}`, id]
+        `INSERT INTO notifications (id, type, message, order_id, recipient_role)
+         VALUES (?, 'commande_refusee', ?, ?, 'Responsable Commercial')`,
+        [newId(), `La commande a été refusée. Raison : ${refusalReason || "Non précisée"}`, id]
       );
     }
 

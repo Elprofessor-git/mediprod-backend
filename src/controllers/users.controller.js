@@ -1,6 +1,7 @@
 // src/controllers/users.controller.js
 const bcrypt = require("bcryptjs");
-const db = require("../config/db");
+const { pool: db } = require("../config/db");
+const newId = require("../utils/uuid");
 
 // GET /api/users  (Admin uniquement)
 async function getAll(req, res) {
@@ -39,13 +40,14 @@ async function create(req, res) {
     if (!roles.length) return res.status(400).json({ error: "Rôle invalide" });
 
     const hash = await bcrypt.hash(password, 10);
-    const [result] = await db.query(
-      `INSERT INTO users (email, password_hash, name, role_id, assigned_products, production_role)
-       VALUES (?, ?, ?, ?, ?, ?)`,
-      [email.toLowerCase(), hash, name, roles[0].id,
+    const userId = newId();
+    await db.query(
+      `INSERT INTO users (id, email, password_hash, name, role_id, assigned_products, production_role)
+       VALUES (?, ?, ?, ?, ?, ?, ?)`,
+      [userId, email.toLowerCase(), hash, name, roles[0].id,
       JSON.stringify(assignedProducts || null), productionRole || null]
     );
-    res.status(201).json({ id: result.insertId, message: "Utilisateur créé" });
+    res.status(201).json({ id: userId, message: "Utilisateur créé" });
   } catch (err) {
     if (err.code === "ER_DUP_ENTRY")
       return res.status(409).json({ error: "Cet email existe déjà" });
