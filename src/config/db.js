@@ -56,6 +56,8 @@ async function initDatabase() {
         min_stock     DECIMAL(10,3) NOT NULL DEFAULT 0,
         max_capacity  DECIMAL(10,3) NOT NULL DEFAULT 1000,
         current_stock DECIMAL(10,3) NOT NULL DEFAULT 0,
+        qte_produit   DECIMAL(10,3) NOT NULL DEFAULT 0,
+        qte_emballe   DECIMAL(10,3) NOT NULL DEFAULT 0,
         created_at    DATETIME      NOT NULL DEFAULT CURRENT_TIMESTAMP
       ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4
     `);
@@ -118,7 +120,7 @@ async function initDatabase() {
         client_id      VARCHAR(36) NOT NULL,
         date           DATETIME    NOT NULL DEFAULT CURRENT_TIMESTAMP,
         delivery_date  DATETIME,
-        status         ENUM('En attente','En cuisson','Cuit','En emballage','Termine','Refuse') NOT NULL DEFAULT 'En attente',
+        status         ENUM('En attente','En cuisson','Cuit','En emballage','Terminé','Refusé') NOT NULL DEFAULT 'En attente',
         notes          TEXT,
         refusal_reason TEXT,
         created_at     DATETIME    NOT NULL DEFAULT CURRENT_TIMESTAMP,
@@ -161,7 +163,7 @@ async function initDatabase() {
         order_id          VARCHAR(36),
         date              DATETIME    NOT NULL DEFAULT CURRENT_TIMESTAMP,
         delivery_date     DATETIME,
-        status            ENUM('Brouillon','Emis','Livre') NOT NULL DEFAULT 'Brouillon',
+        status            ENUM('Brouillon','Émis','Livré') NOT NULL DEFAULT 'Brouillon',
         notes             TEXT,
         chauffeur         VARCHAR(150),
         matricule_fiscale VARCHAR(50),
@@ -177,13 +179,15 @@ async function initDatabase() {
       CREATE TABLE IF NOT EXISTS bon_items (
         id              VARCHAR(36)   PRIMARY KEY,
         bon_id          VARCHAR(36)   NOT NULL,
+        product_id      VARCHAR(36)   NULL,
         designation     VARCHAR(255)  NOT NULL,
         quantity        DECIMAL(10,3) NOT NULL,
         unit            ENUM('Kg','1P') NOT NULL,
         unit_price      DECIMAL(10,3) NOT NULL,
         conditionnement VARCHAR(100),
         observations    TEXT,
-        FOREIGN KEY (bon_id) REFERENCES bons_livraison(id) ON DELETE CASCADE
+        FOREIGN KEY (bon_id)     REFERENCES bons_livraison(id) ON DELETE CASCADE,
+        FOREIGN KEY (product_id) REFERENCES products(id) ON DELETE SET NULL
       ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4
     `);
 

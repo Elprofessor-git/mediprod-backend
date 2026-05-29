@@ -48,16 +48,30 @@ async function create(req, res) {
 
     const entryId = newId();
     await conn.query(
-      `INSERT INTO production_entries (id, date, product_id, produced, packaged, lot, operator, notes)
-       VALUES (?, ?, ?, ?, ?, ?, ?, ?)`,
-      [entryId, date || new Date(), productId, produced, packaged, lot, operator, notes || ""]
+      `INSERT INTO production_entries (id, date, product_id, user_id, produced, packaged, lot, operator, notes)
+       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+      [entryId, date || new Date(), productId, req.user.id, produced, packaged, lot, operator, notes || ""]
     );
 
-    // Mettre à jour le stock courant
+    // produced → déduit current_stock, ajouté à qte_produit
     await conn.query(
-      "UPDATE products SET current_stock = current_stock + ? WHERE id = ?",
-      [packaged, productId]
+      `UPDATE products SET
+       current_stock = GREATEST(0, current_stock - ?),
+       qte_produit = qte_produit + ?
+       WHERE id = ?`,
+      [produced, produced, productId]
     );
+
+    // packaged → déduit qte_produit, ajouté à qte_emballe
+    if (packaged > 0) {
+      await conn.query(
+        `UPDATE products SET
+         qte_produit = GREATEST(0, qte_produit - ?),
+         qte_emballe = qte_emballe + ?
+         WHERE id = ?`,
+        [packaged, packaged, productId]
+      );
+    }
 
     await checkAndNotifyStock(conn, productId);
 

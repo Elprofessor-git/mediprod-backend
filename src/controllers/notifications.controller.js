@@ -36,15 +36,10 @@ async function markRead(req, res) {
 async function markAllRead(req, res) {
   const role = req.user.role;
   try {
-    if (role === "Admin") {
-      await db.query(
-        "UPDATE notifications SET read_status = TRUE WHERE recipient_role IN ('Admin', 'Responsable Commercial')"
-      );
-    } else {
-      await db.query(
-        "UPDATE notifications SET read_status = TRUE WHERE recipient_role = 'Responsable Commercial'"
-      );
-    }
+    await db.query(
+      "UPDATE notifications SET read_status = TRUE WHERE recipient_role = ?",
+      [role]
+    );
     res.json({ message: "Toutes les notifications marquées comme lues" });
   } catch (err) { res.status(500).json({ error: err.message }); }
 }

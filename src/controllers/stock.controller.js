@@ -7,10 +7,13 @@ const newId = require("../utils/uuid");
 async function getMovements(req, res) {
   try {
     const [rows] = await db.query(
-      `SELECT sm.*, p.name AS product_name
-       FROM stock_movements sm
-       JOIN products p ON p.id = sm.product_id
-       ORDER BY sm.date DESC`
+      `SELECT
+        p.id, p.name, p.unit,
+        p.current_stock AS matiere_premiere,
+        p.min_stock,
+        p.qte_produit AS en_cours,
+        p.qte_emballe AS pret_livraison
+       FROM products p`
     );
     res.json(rows);
   } catch (err) { res.status(500).json({ error: err.message }); }
@@ -25,6 +28,16 @@ async function addMovement(req, res) {
   const conn = await db.getConnection();
   try {
     await conn.beginTransaction();
+
+    const [[product]] = await conn.query(
+      "SELECT current_stock FROM products WHERE id = ?", [productId]
+    );
+    if (type === "Sortie" && quantity > product.current_stock) {
+      await conn.rollback();
+      return res.status(400).json({
+        error: `Stock insuffisant : ${product.current_stock} kg disponibles, ${quantity} kg demandés.`
+      });
+    }
 
     await conn.query(
       `INSERT INTO stock_movements (id, product_id, type, quantity, reason, user_name)
@@ -62,4 +75,17 @@ async function addMovement(req, res) {
   }
 }
 
-module.exports = { getMovements, addMovement };
+// GET /api/stock/history
+async function getHistory(req, res) {
+  try {
+    const [rows] = await db.query(
+      `SELECT sm.*, p.name AS product_name
+       FROM stock_movements sm
+       JOIN products p ON p.id = sm.product_id
+       ORDER BY sm.date DESC`
+    );
+    res.json(rows);
+  } catch (err) { res.status(500).json({ error: err.message }); }
+}
+
+module.exports = { getMovements, addMovement, getHistory };

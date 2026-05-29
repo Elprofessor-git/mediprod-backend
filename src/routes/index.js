@@ -14,6 +14,7 @@ const ordersCtrl  = require("../controllers/orders.controller");
 const clientsCtrl = require("../controllers/clients.controller");
 const bonsCtrl    = require("../controllers/bons.controller");
 const notifsCtrl  = require("../controllers/notifications.controller");
+const chatCtrl    = require("../controllers/chat.controller");
 
 // ── AUTH ────────────────────────────────────────────────────
 router.post("/auth/login", authCtrl.login);
@@ -29,7 +30,7 @@ router.delete("/users/:id", auth, allowRoles("Admin"), usersCtrl.remove);
 // ── PRODUCTS ─────────────────────────────────────────────────
 router.get   ("/products",     auth, productsCtrl.getAll);
 router.post  ("/products",     auth, allowRoles("Admin"), productsCtrl.create);
-router.put   ("/products/:id", auth, allowRoles("Admin"), productsCtrl.update);
+router.put   ("/products/:id", auth, allowRoles("Admin","Responsable Commercial"), productsCtrl.update);
 router.delete("/products/:id", auth, allowRoles("Admin"), productsCtrl.remove);
 
 // ── PRODUCTION ───────────────────────────────────────────────
@@ -40,7 +41,8 @@ router.delete("/production/:id", auth, allowRoles("Admin","Responsable Productio
 
 // ── STOCK ────────────────────────────────────────────────────
 router.get ("/stock/movements", auth, allowRoles("Admin","Responsable Commercial"), stockCtrl.getMovements);
-router.post("/stock/movements", auth, allowRoles("Admin"), stockCtrl.addMovement);
+router.post("/stock/movements", auth, allowRoles("Admin","Responsable Commercial"), stockCtrl.addMovement);
+router.get ("/stock/history",   auth, allowRoles("Admin","Responsable Commercial"), stockCtrl.getHistory);
 
 // ── ORDERS ───────────────────────────────────────────────────
 router.get ("/orders",             auth, ordersCtrl.getAll);
@@ -62,8 +64,11 @@ router.get("/notifications",          auth, notifsCtrl.getAll);
 router.put("/notifications/read-all", auth, notifsCtrl.markAllRead);
 router.put("/notifications/:id/read", auth, notifsCtrl.markRead);
 
+// ── CHAT AI ──────────────────────────────────────────────────
+router.post("/chat", auth, chatCtrl.chat);
+
 // ── INCIDENTS ────────────────────────────────────────────────
-router.get ("/incidents", auth, allowRoles("Admin","Responsable Commercial"), notifsCtrl.getIncidents);
+router.get ("/incidents", auth, allowRoles("Admin","Responsable Commercial","Responsable Production"), notifsCtrl.getIncidents);
 router.post("/incidents", auth, allowRoles("Admin","Responsable Production"),  notifsCtrl.createIncident);
 
 module.exports = router;

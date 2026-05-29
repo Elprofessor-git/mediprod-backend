@@ -46,7 +46,9 @@ CREATE TABLE products (
   min_stock    DECIMAL(10,3) NOT NULL DEFAULT 0,
   max_capacity DECIMAL(10,3) NOT NULL DEFAULT 1000,
   current_stock DECIMAL(10,3) NOT NULL DEFAULT 0,
-  created_at   DATETIME     NOT NULL DEFAULT CURRENT_TIMESTAMP
+  qte_produit   DECIMAL(10,3) NOT NULL DEFAULT 0,
+  qte_emballe   DECIMAL(10,3) NOT NULL DEFAULT 0,
+  created_at    DATETIME      NOT NULL DEFAULT CURRENT_TIMESTAMP
 );
 
 INSERT INTO products (id, name, unit, min_stock, max_capacity, current_stock) VALUES
@@ -83,13 +85,15 @@ CREATE TABLE production_entries (
   id          VARCHAR(36)  PRIMARY KEY DEFAULT (UUID()),
   date        DATETIME     NOT NULL,
   product_id  VARCHAR(36)  NOT NULL,
+  user_id     VARCHAR(36)  NULL,
   produced    DECIMAL(10,3) NOT NULL,
   packaged    DECIMAL(10,3) NOT NULL,
   lot         VARCHAR(50)  NOT NULL,
   operator    VARCHAR(100) NOT NULL,
   notes       TEXT,
   created_at  DATETIME     NOT NULL DEFAULT CURRENT_TIMESTAMP,
-  FOREIGN KEY (product_id) REFERENCES products(id)
+  FOREIGN KEY (product_id) REFERENCES products(id),
+  FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE SET NULL
 );
 
 -- ------------------------------------------------------------

@@ -89,7 +89,19 @@ async function update(req, res) {
 
 // DELETE /api/users/:id  (Admin uniquement)
 async function remove(req, res) {
+  if (req.params.id === req.user.id) {
+    return res.status(403).json({ error: "Vous ne pouvez pas supprimer votre propre compte" });
+  }
   try {
+    const [[{ count }]] = await db.query(
+      "SELECT COUNT(*) AS count FROM production_entries WHERE user_id = ?",
+      [req.params.id]
+    );
+    if (count > 0) {
+      return res.status(409).json({
+        error: "Impossible de supprimer : cet utilisateur a des enregistrements de production associés. Désactivez-le plutôt."
+      });
+    }
     await db.query("DELETE FROM users WHERE id = ?", [req.params.id]);
     res.json({ message: "Utilisateur supprimé" });
   } catch (err) {

@@ -26,9 +26,12 @@ async function getAll(req, res) {
 }
 
 async function create(req, res) {
-  const { clientId, orderId, date, deliveryDate, items, notes, chauffeur, matriculeFiscale, number } = req.body;
+  const { clientId, orderId, date, deliveryDate, items, notes, chauffeur, matriculeFiscale, number, status } = req.body;
   if (!clientId || !items?.length)
     return res.status(400).json({ error: "Client et articles requis" });
+
+  const VALID_STATUSES = ["Brouillon", "Émis", "Livré"];
+  const bonStatus = VALID_STATUSES.includes(status) ? status : "Brouillon";
 
   const conn = await db.getConnection();
   try {
@@ -41,17 +44,17 @@ async function create(req, res) {
     const bonId = newId();
     await conn.query(
       `INSERT INTO bons_livraison (id, number, client_id, order_id, date, delivery_date, status, notes, chauffeur, matricule_fiscale, prepared_by)
-       VALUES (?, ?, ?, ?, ?, ?, 'Brouillon', ?, ?, ?, ?)`,
+       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
       [bonId, bonNumber, clientId, orderId || null, date || new Date(),
-       deliveryDate || null, notes || "", chauffeur || "", matriculeFiscale || "", req.user.name]
+       deliveryDate || null, bonStatus, notes || "", chauffeur || "", matriculeFiscale || "", req.user.name]
     );
 
     for (const item of items) {
       await conn.query(
-        `INSERT INTO bon_items (id, bon_id, designation, quantity, unit, unit_price, conditionnement, observations)
-         VALUES (?, ?, ?, ?, ?, ?, ?, ?)`,
-        [newId(), bonId, item.designation, item.quantity, item.unit,
-         item.unitPrice, item.conditionnement || "", item.observations || ""]
+        `INSERT INTO bon_items (id, bon_id, product_id, designation, quantity, unit, unit_price, conditionnement, observations)
+         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+        [newId(), bonId, item.productId || null, item.designation, item.quantity,
+         item.unit, item.unitPrice, item.conditionnement || "", item.observations || ""]
       );
     }
 
@@ -67,10 +70,36 @@ async function create(req, res) {
 
 async function updateStatus(req, res) {
   const { status } = req.body;
+  const { id } = req.params;
+  const conn = await db.getConnection();
   try {
-    await db.query("UPDATE bons_livraison SET status = ? WHERE id = ?", [status, req.params.id]);
+    await conn.beginTransaction();
+
+    await conn.query("UPDATE bons_livraison SET status = ? WHERE id = ?", [status, id]);
+
+    if (status === "Émis") {
+      const [items] = await conn.query(
+        `SELECT bi.product_id, bi.quantity
+         FROM bon_items bi
+         WHERE bi.bon_id = ? AND bi.product_id IS NOT NULL`,
+        [id]
+      );
+      for (const item of items) {
+        await conn.query(
+          `UPDATE products SET qte_emballe = GREATEST(0, qte_emballe - ?) WHERE id = ?`,
+          [item.quantity, item.product_id]
+        );
+      }
+    }
+
+    await conn.commit();
     res.json({ message: "Statut mis à jour" });
-  } catch (err) { res.status(500).json({ error: err.message }); }
+  } catch (err) {
+    await conn.rollback();
+    res.status(500).json({ error: err.message });
+  } finally {
+    conn.release();
+  }
 }
 
 module.exports = { getAll, create, updateStatus };
