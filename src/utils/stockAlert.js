@@ -9,7 +9,7 @@ async function checkAndNotifyStock(conn, productId) {
     [productId]
   );
   const p = rows[0];
-  if (!p || p.current_stock >= p.min_stock) return;
+  if (!p || parseFloat(p.current_stock) >= parseFloat(p.min_stock)) return;
 
   const [existing] = await conn.query(
     `SELECT id FROM notifications

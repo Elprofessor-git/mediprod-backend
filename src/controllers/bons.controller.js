@@ -2,9 +2,41 @@
 const { pool: db } = require("../config/db");
 const newId = require("../utils/uuid");
 
+const itemToClient = (row) => ({
+  id: row.id,
+  productId: row.product_id ?? undefined,
+  designation: row.designation,
+  quantity: parseFloat(String(row.quantity)),
+  unit: row.unit,
+  unitPrice: parseFloat(String(row.unit_price)),
+  conditionnement: row.conditionnement ?? "",
+  observations: row.observations ?? "",
+});
+
+const bonToClient = (row) => ({
+  id: row.id,
+  number: row.number,
+  clientId: row.client_id,
+  clientName: row.client_name,
+  clientCompany: row.client_company,
+  clientAddress: row.client_address,
+  clientCity: row.client_city,
+  clientPhone: row.client_phone,
+  clientNumber: row.client_number,
+  orderId: row.order_id ?? undefined,
+  date: row.date,
+  deliveryDate: row.delivery_date,
+  status: row.status,
+  notes: row.notes ?? "",
+  chauffeur: row.chauffeur ?? "",
+  matriculeFiscale: row.matricule_fiscale ?? "",
+  preparedBy: row.prepared_by ?? "",
+  items: [],
+});
+
 async function getAll(req, res) {
   try {
-    const [bons] = await db.query(
+    const [rows] = await db.query(
       `SELECT bl.*, c.name AS client_name, c.company AS client_company,
               c.address AS client_address, c.city AS client_city,
               c.phone AS client_phone, c.client_number
@@ -13,12 +45,13 @@ async function getAll(req, res) {
        ORDER BY bl.date DESC`
     );
 
+    const bons = rows.map(bonToClient);
     for (const bon of bons) {
       const [items] = await db.query(
         "SELECT * FROM bon_items WHERE bon_id = ? ORDER BY id",
         [bon.id]
       );
-      bon.items = items;
+      bon.items = items.map(itemToClient);
     }
 
     res.json(bons);
@@ -29,6 +62,8 @@ async function create(req, res) {
   const { clientId, orderId, date, deliveryDate, items, notes, chauffeur, matriculeFiscale, number, status } = req.body;
   if (!clientId || !items?.length)
     return res.status(400).json({ error: "Client et articles requis" });
+
+  const toSQL = (d) => d ? new Date(d).toISOString().slice(0, 19).replace("T", " ") : null;
 
   const VALID_STATUSES = ["Brouillon", "Émis", "Livré"];
   const bonStatus = VALID_STATUSES.includes(status) ? status : "Brouillon";
@@ -45,8 +80,8 @@ async function create(req, res) {
     await conn.query(
       `INSERT INTO bons_livraison (id, number, client_id, order_id, date, delivery_date, status, notes, chauffeur, matricule_fiscale, prepared_by)
        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
-      [bonId, bonNumber, clientId, orderId || null, date || new Date(),
-       deliveryDate || null, bonStatus, notes || "", chauffeur || "", matriculeFiscale || "", req.user.name]
+      [bonId, bonNumber, clientId, orderId || null, toSQL(date) || toSQL(new Date()),
+       toSQL(deliveryDate), bonStatus, notes || "", chauffeur || "", matriculeFiscale || "", req.user.name]
     );
 
     for (const item of items) {

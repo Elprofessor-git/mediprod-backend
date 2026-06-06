@@ -4,6 +4,18 @@ const { getProductFilter } = require("../middleware/roles");
 const { checkAndNotifyStock } = require("../utils/stockAlert");
 const newId = require("../utils/uuid");
 
+const toClient = (row) => ({
+  id: row.id,
+  date: row.date,
+  productId: row.product_id,
+  productName: row.product_name,
+  produced: parseFloat(String(row.produced)),
+  packaged: parseFloat(String(row.packaged)),
+  lot: row.lot,
+  operator: row.operator,
+  notes: row.notes ?? "",
+});
+
 // GET /api/production
 async function getAll(req, res) {
   try {
@@ -16,7 +28,6 @@ async function getAll(req, res) {
     `;
     const params = [];
 
-    // Filtre produit pour Responsable Production
     if (productFilter) {
       const placeholders = productFilter.map(() => "?").join(",");
       sql += ` WHERE p.name IN (${placeholders})`;
@@ -25,7 +36,7 @@ async function getAll(req, res) {
 
     sql += " ORDER BY pe.date DESC";
     const [rows] = await db.query(sql, params);
-    res.json(rows);
+    res.json(rows.map(toClient));
   } catch (err) { res.status(500).json({ error: err.message }); }
 }
 
@@ -42,6 +53,8 @@ async function create(req, res) {
     }
   }
 
+  const toSQL = (d) => d ? new Date(d).toISOString().slice(0, 19).replace("T", " ") : null;
+
   const conn = await db.getConnection();
   try {
     await conn.beginTransaction();
@@ -50,7 +63,7 @@ async function create(req, res) {
     await conn.query(
       `INSERT INTO production_entries (id, date, product_id, user_id, produced, packaged, lot, operator, notes)
        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`,
-      [entryId, date || new Date(), productId, req.user.id, produced, packaged, lot, operator, notes || ""]
+      [entryId, toSQL(date) || toSQL(new Date()), productId, req.user.id, produced, packaged, lot, operator, notes || ""]
     );
 
     // produced → déduit current_stock, ajouté à qte_produit

@@ -40,7 +40,7 @@ router.post  ("/production",     auth, allowRoles("Admin","Responsable Productio
 router.delete("/production/:id", auth, allowRoles("Admin","Responsable Production"), productionCtrl.remove);
 
 // ── STOCK ────────────────────────────────────────────────────
-router.get ("/stock/movements", auth, allowRoles("Admin","Responsable Commercial"), stockCtrl.getMovements);
+router.get ("/stock/movements", auth, allowRoles("Admin","Responsable Commercial","Responsable Production"), stockCtrl.getMovements);
 router.post("/stock/movements", auth, allowRoles("Admin","Responsable Commercial"), stockCtrl.addMovement);
 router.get ("/stock/history",   auth, allowRoles("Admin","Responsable Commercial"), stockCtrl.getHistory);
 

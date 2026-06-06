@@ -1,14 +1,15 @@
 // src/controllers/products.controller.js
 const { pool: db } = require("../config/db");
 const { checkAndNotifyStock } = require("../utils/stockAlert");
+const newId = require("../utils/uuid");
 
 const toClient = (p) => ({
   id: String(p.id),
   name: p.name,
   unit: p.unit,
-  minStock: p.min_stock,
-  maxCapacity: p.max_capacity,
-  currentStock: p.current_stock,
+  minStock: parseFloat(p.min_stock),
+  maxCapacity: parseFloat(p.max_capacity),
+  currentStock: parseFloat(p.current_stock),
 });
 
 async function getAll(req, res) {
@@ -23,11 +24,12 @@ async function create(req, res) {
   if (!name || minStock == null || maxCapacity == null)
     return res.status(400).json({ error: "Champs obligatoires manquants" });
   try {
-    const [result] = await db.query(
-      "INSERT INTO products (name, unit, min_stock, max_capacity, current_stock) VALUES (?, 'kg', ?, ?, ?)",
-      [name, minStock, maxCapacity, currentStock ?? 0]
+    const id = newId();
+    await db.query(
+      "INSERT INTO products (id, name, unit, min_stock, max_capacity, current_stock) VALUES (?, ?, 'kg', ?, ?, ?)",
+      [id, name, minStock, maxCapacity, currentStock ?? 0]
     );
-    res.status(201).json({ id: result.insertId, message: "Produit créé" });
+    res.status(201).json({ id, message: "Produit créé" });
   } catch (err) { res.status(500).json({ error: err.message }); }
 }
 
@@ -52,6 +54,18 @@ async function update(req, res) {
 
 async function remove(req, res) {
   try {
+    const [[{ count }]] = await db.query(
+      `SELECT (
+        (SELECT COUNT(*) FROM production_entries WHERE product_id = ?) +
+        (SELECT COUNT(*) FROM stock_movements      WHERE product_id = ?) +
+        (SELECT COUNT(*) FROM order_items          WHERE product_id = ?)
+      ) AS count`,
+      [req.params.id, req.params.id, req.params.id]
+    );
+    if (count > 0)
+      return res.status(409).json({
+        error: "Impossible de supprimer : ce produit est lié à des enregistrements de production, de stock ou de commandes existants.",
+      });
     await db.query("DELETE FROM products WHERE id = ?", [req.params.id]);
     res.json({ message: "Produit supprimé" });
   } catch (err) { res.status(500).json({ error: err.message }); }

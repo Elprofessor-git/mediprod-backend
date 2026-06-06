@@ -51,7 +51,19 @@ async function getAll(req, res) {
       order.partialQuantities = partialMap;
     }
 
-    res.json(orders);
+    const mapped = orders.map(o => ({
+      ...o,
+      clientId: o.client_id,
+      deliveryDate: o.delivery_date,
+      items: (o.items || []).map(it => ({
+        ...it,
+        productId: it.product_id,
+        unitPrice: it.unit_price,
+        productName: it.product_name,
+      }))
+    }));
+
+    res.json(mapped);
   } catch (err) { res.status(500).json({ error: err.message }); }
 }
 
@@ -60,6 +72,8 @@ async function create(req, res) {
   const { clientId, date, deliveryDate, items, notes } = req.body;
   if (!clientId || !items?.length)
     return res.status(400).json({ error: "Client et produits requis" });
+
+  const toSQL = (d) => d ? new Date(d).toISOString().slice(0, 19).replace("T", " ") : null;
 
   const conn = await db.getConnection();
   try {
@@ -73,7 +87,7 @@ async function create(req, res) {
     await conn.query(
       `INSERT INTO orders (id, number, client_id, date, delivery_date, status, notes)
        VALUES (?, ?, ?, ?, ?, 'En attente', ?)`,
-      [orderId, number, clientId, date || new Date(), deliveryDate || null, notes || ""]
+      [orderId, number, clientId, toSQL(date) || toSQL(new Date()), toSQL(deliveryDate), notes || ""]
     );
 
     for (const item of items) {
